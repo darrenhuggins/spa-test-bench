@@ -15,7 +15,7 @@
   })();
 
   // ---------- settings (test controls) ----------
-  const DEFAULTS = { random: true, lateMs: 2000, identityMs: 0, pageLoad: false };
+  const DEFAULTS = { random: true, lateMs: 2000, identityMs: 0, pageLoad: false, showConditions: true };
   const settings = Object.assign({}, DEFAULTS, (() => {
     try { return JSON.parse(localStorage.getItem('spa-test-settings') || '{}'); } catch (e) { return {}; }
   })());
@@ -83,6 +83,7 @@
     { re: /^\/reports$/,          title: 'Reports',       view: viewReports },
     { re: /^\/reports\/([^/]+)$/, title: 'Report detail', view: viewReportDetail },
     { re: /^\/settings$/,         title: 'Settings',      view: viewSettings },
+    { re: /^\/tour$/,             title: 'Guide tour',    view: viewTour },
     { re: /^\/legacy$/,           title: 'Legacy (hash)', view: viewLegacy }
   ];
 
@@ -108,8 +109,168 @@
       app.innerHTML = `<div data-ui="card"><h1>Not found</h1><p>No route for <code>${path}</code>.</p>
         <a data-link data-path="/" data-pendo="notfound-home">Go home</a></div>`;
     }
+    renderConditions(path);
     log('Route rendered: ' + path + (location.search || '') + (location.hash || ''));
     if (settings.pageLoad && pendoLoaded()) { window.pendo.pageLoad(); log('pendo.pageLoad() called'); }
+  }
+
+  // ---------- per-page "test conditions" panel ----------
+  // Describes what is deliberately special about each page so guide behavior can be explained.
+  const k = (s) => '<code>' + s + '</code>';
+  const rule = (p) => '//*' + BASE + p;
+  const conditionSpecs = () => ({
+    '/': {
+      badge: 'Baseline', rule: '/',
+      conditions: [
+        'Reached by <code>pushState</code> from the header nav, or by direct load. Nav clicks never reload the page.',
+        'Everything renders synchronously, with no delay.',
+        'Class names are randomized on every render when that option is on (' + (settings.random ? 'currently ON' : 'currently OFF') + ').'
+      ],
+      elements: [
+        ['[data-pendo="home-cta"]', 'Stable anchor for a tooltip or lightbox'],
+        ['[data-pendo="rerender-btn"]', 'Destroys and recreates every element in the view'],
+        ['[data-pendo^="nav-"]', 'Header nav items, which persist across every route']
+      ],
+      tryThis: [
+        'Anchor a tooltip to <code>home-cta</code>, then click "Destroy &amp; re-render" and see whether the guide survives.',
+        'Anchor a second guide using the random class name instead, and watch it fail after the re-render.'
+      ]
+    },
+    '/dashboard': {
+      badge: 'Late render', rule: '/dashboard',
+      conditions: [
+        'Widgets and the Export button do not exist until the late-render delay passes (<strong>' + settings.lateMs + ' ms</strong> now).',
+        'Skeleton placeholders fill the grid until the data "arrives".',
+        'A new header nav item (<code>nav-insights</code>) is injected after the delay and then stays on every later page.',
+        'Leaving the page before the delay ends cancels the late render.'
+      ],
+      elements: [
+        ['[data-pendo="export-btn"]', 'Late-rendered button, the main timing test'],
+        ['[data-pendo="late-badge"]', 'Late-rendered badge next to the button'],
+        ['[data-pendo^="widget-"]', 'Three late-rendered cards'],
+        ['[data-pendo="nav-insights"]', 'Late nav item that persists on other pages']
+      ],
+      tryThis: [
+        'Anchor a tooltip to <code>export-btn</code>. Compare a delay of 0 ms against 5000 ms.',
+        'Click Dashboard and immediately click away. Does the guide ever flash on the wrong page?',
+        'Target <code>nav-insights</code> and visit other pages before and after seeing the Dashboard.'
+      ]
+    },
+    '/reports': {
+      badge: 'Query string', rule: '/reports',
+      conditions: [
+        'The pathname stays <code>/reports</code>. The filter changes only the query string (<code>?status=open|closed</code>).',
+        'The table is rebuilt on each filter change, so every link is a new element.',
+        'A page rule can match with or without the query parameter.'
+      ],
+      elements: [
+        ['[data-pendo="filter-open"]', 'Filter link that changes the query string'],
+        ['[data-pendo="reports-table"]', 'Rebuilt on each filter change'],
+        ['[data-pendo^="report-link-"]', 'Links to the parameterized detail pages']
+      ],
+      tryThis: [
+        'Create two pages, one for <code>/reports</code> and one for <code>/reports?status=open</code>, and see which guides show.',
+        'Use the "open" filter to show a guide only when that filter is active.'
+      ]
+    },
+    '/reports/:id': {
+      badge: 'URL parameter', rule: '/reports/*',
+      conditions: [
+        'The URL contains a record ID (<code>/reports/42</code>, <code>/57</code>, <code>/63</code>). One template serves all of them.',
+        'Going from one detail page to another through Reports is a route change, not a page load.'
+      ],
+      elements: [
+        ['[data-pendo="report-title"]', 'Content changes per ID'],
+        ['[data-pendo="share-report"]', 'Stable button on every detail page'],
+        ['[data-pendo="back-to-reports"]', 'Returns to the list']
+      ],
+      tryThis: [
+        'Use a wildcard page rule (' + k(rule('/reports/*')) + ') and confirm the guide shows for every ID.',
+        'Pin a rule to one ID (' + k(rule('/reports/42')) + ') and confirm it is ignored on the others.'
+      ]
+    },
+    '/settings': {
+      badge: 'Same URL, many views', rule: '/settings',
+      conditions: [
+        'The URL never changes through the tabs, the invite modal, or the wizard steps. A page rule cannot tell them apart.',
+        'Every state change re-renders the whole view, so previously anchored elements are destroyed and recreated.',
+        'The modal is created only when opened (fixed position, z-index 50) and removed when closed.',
+        'Some elements exist only in certain states: <code>invite-btn</code> only on the Team tab, <code>upgrade-btn</code> only on Billing.'
+      ],
+      elements: [
+        ['[data-pendo^="tab-"]', 'Tab buttons (profile, billing, team)'],
+        ['[data-pendo="upgrade-btn"]', 'Exists only on the Billing tab'],
+        ['[data-pendo="invite-btn"]', 'Exists only on the Team tab'],
+        ['[data-pendo="invite-modal"], [data-pendo="modal-send"]', 'Exist only while the modal is open'],
+        ['[data-pendo^="wizard-step-"], [data-pendo="wizard-next"]', 'Wizard that changes steps without a URL change']
+      ],
+      tryThis: [
+        'Show a guide only when the Billing tab is active, using an element-on-page condition on <code>upgrade-btn</code>.',
+        'Anchor a step to <code>modal-send</code> and see whether it appears only while the modal is open.',
+        'Use wizard step 2 to test guides that depend on in-page state.'
+      ]
+    },
+    '/tour': {
+      badge: 'Multi-step guide', rule: '/tour',
+      conditions: [
+        'Five ordered targets built for a multi-step guide. Some exist from the start, some only after earlier steps are done.',
+        'Step 3 (the project form) <strong>does not exist</strong> until the user clicks "Create project" in step 2.',
+        'Step 4 sits inside a scroll container, so it starts off-screen.',
+        'Step 5 shows a success message and a late badge after a delay (<strong>' + settings.lateMs + ' ms</strong> now).',
+        'Every action re-renders the view. Use "Reset tour state" to start over.'
+      ],
+      elements: [
+        ['[data-pendo="tour-welcome"]', 'Step 1: always present'],
+        ['[data-pendo="tour-create-btn"]', 'Step 2: click to reveal the form'],
+        ['[data-pendo="tour-name"] / [data-pendo="tour-save"]', 'Step 3: appear only after step 2'],
+        ['[data-pendo="tour-scroll-target"]', 'Step 4: inside a scroll container'],
+        ['[data-pendo="tour-finish"]', 'Step 5: click to complete'],
+        ['[data-pendo="tour-late-badge"]', 'Late-rendered completion badge']
+      ],
+      tryThis: [
+        'In the Pendo Designer, build one guide with five steps, one per target above, and use the page-level launch behavior you want to test.',
+        'For step 3, check what happens if the guide advances before the form exists.',
+        'For step 4, check whether the tooltip scrolls into view with its anchor.',
+        'Walk the cross-page path below to build a guide that spans several pages.'
+      ]
+    },
+    '/legacy': {
+      badge: 'Hash routing', rule: '/legacy',
+      conditions: [
+        'The pathname stays <code>/legacy</code>. Only the <code>#fragment</code> changes (<code>#/overview</code>, <code>#/details</code>, <code>#/history</code>).',
+        'A hash change swaps only the inner pane, with no full render.',
+        'Check whether your Pendo page rules treat the fragment as part of the URL. Test both with and without it.'
+      ],
+      elements: [
+        ['[data-pendo^="hash-"]', 'Hash links'],
+        ['[data-pendo^="legacy-"]', 'Content panes (overview, details, history)'],
+        ['[data-pendo="legacy-action"]', 'Button inside each pane']
+      ],
+      tryThis: [
+        'Create a page rule for <code>/legacy</code> and see if one guide appears on all three hashes.',
+        'Anchor a guide to <code>legacy-details</code> to show it only on that hash.'
+      ]
+    }
+  });
+
+  function renderConditions(path) {
+    const el = $('#conditions');
+    const key = path.startsWith('/reports/') ? '/reports/:id' : path;
+    const spec = conditionSpecs()[key];
+    if (!settings.showConditions || !spec) { el.innerHTML = ''; return; }
+    const li = (a) => a.map(x => '<li>' + x + '</li>').join('');
+    el.innerHTML = `
+      <details data-ui="card" open data-pendo="conditions-card">
+        <summary><strong>Test conditions on this page</strong> <span class="badge">${spec.badge}</span></summary>
+        <h4>Page rule (adjust the host if needed)</h4>
+        <p><code>${rule(spec.rule)}</code></p>
+        <h4>What is special here</h4>
+        <ul>${li(spec.conditions)}</ul>
+        <h4>Elements to target</h4>
+        <table>${spec.elements.map(e => `<tr><td><code>${e[0].replace(/</g, '&lt;')}</code></td><td>${e[1]}</td></tr>`).join('')}</table>
+        <h4>Things to try</h4>
+        <ul>${li(spec.tryThis)}</ul>
+      </details>`;
   }
 
   // ---------- views ----------
@@ -128,6 +289,7 @@
           <tr><td>Random class names</td><td>Everywhere (toggle in test controls)</td><td>Use <code>data-pendo</code>, not classes</td></tr>
           <tr><td>Same URL, different views</td><td><a data-link data-path="/settings" data-pendo="home-settings-link">Settings</a> (tabs, modal, wizard)</td><td>Element-on-page conditions</td></tr>
           <tr><td>Hash routing</td><td><a data-link data-path="/legacy" data-pendo="home-legacy-link">Legacy</a></td><td>Page rule with hash</td></tr>
+          <tr><td>Multi-step guide</td><td><a data-link data-path="/tour" data-pendo="home-tour-link">Tour</a></td><td><code>[data-pendo^="tour-"]</code></td></tr>
         </table>
       </div>
       <div data-ui="card" class="${c('card')}">
@@ -266,6 +428,76 @@
     log('Hash pane rendered: #/' + h);
   }
 
+  // Tour: a playground for building ONE multi-step guide in the Pendo Designer.
+  const tourState = { created: false, saved: false, finished: false };
+  function viewTour() {
+    const t = tourState;
+    const progress = t.finished ? 'Step 5 done' : t.saved ? 'Step 3 done (saved)' : t.created ? 'Step 2 done (form open)' : 'Not started';
+    app.innerHTML = `
+      <h1 data-pendo="tour-title">Guide tour playground</h1>
+      <p class="sub">Progress: <span class="badge" data-pendo="tour-progress">${progress}</span></p>
+
+      <div data-ui="card" class="${c('card')}" data-pendo="tour-welcome">
+        <h3>1 · Welcome</h3>
+        <p>A static element that is always present. A good first step for a lightbox or tooltip.</p>
+      </div>
+
+      <div data-ui="card" class="${c('card')}">
+        <h3>2 · Create a project</h3>
+        <button data-ui="btn" class="${c('btn')}" id="tour-create-btn" data-pendo="tour-create-btn" type="button" ${t.created ? 'disabled' : ''}>Create project</button>
+        ${t.created ? `
+        <div style="margin-top:12px" data-pendo="tour-form">
+          <h3>3 · Name it (appears only after step 2)</h3>
+          <label class="field">Project name<input type="text" id="tour-name" data-pendo="tour-name" placeholder="My project"></label>
+          <button data-ui="btn" class="${c('btn')}" id="tour-save" data-pendo="tour-save" type="button" ${t.saved ? 'disabled' : ''}>${t.saved ? 'Saved' : 'Save'}</button>
+        </div>` : ''}
+      </div>
+
+      <div data-ui="card" class="${c('card')}">
+        <h3>4 · Scroll container</h3>
+        <div id="tour-scroll" data-pendo="tour-scroll" style="height:110px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:8px">
+          <p>Scroll down inside this box…</p>
+          <div style="height:220px"></div>
+          <button data-ui="btn" class="${c('btn')}" data-pendo="tour-scroll-target" type="button">Target hidden below the fold</button>
+          <div style="height:40px"></div>
+        </div>
+      </div>
+
+      <div data-ui="card" class="${c('card')}">
+        <h3>5 · Finish</h3>
+        <button data-ui="btn" class="${c('btn')}" id="tour-finish" data-pendo="tour-finish" type="button" ${t.finished ? 'disabled' : ''}>Finish tour</button>
+        ${t.finished ? `<p data-pendo="tour-success" style="color:#15803d"><strong>Tour complete.</strong> <span id="tour-late"></span></p>` : ''}
+      </div>
+
+      <p><button data-ui="btn" data-variant="ghost" class="${c('btn')}" id="tour-reset" data-pendo="tour-reset" type="button">Reset tour state</button></p>
+
+      <div data-ui="card" class="${c('card')}" data-pendo="tour-crosspage">
+        <h3>Cross-page path (for a guide that spans pages)</h3>
+        <ol class="path">
+          <li><a data-link data-path="/" data-pendo="path-home">Home</a>: <code>[data-pendo="home-cta"]</code></li>
+          <li><a data-link data-path="/dashboard" data-pendo="path-dashboard">Dashboard</a>: <code>[data-pendo="export-btn"]</code> (late-rendered)</li>
+          <li><a data-link data-path="/reports?status=open" data-pendo="path-reports">Reports (open filter)</a>: <code>[data-pendo="filter-open"]</code></li>
+          <li><a data-link data-path="/settings" data-pendo="path-settings">Settings</a>: <code>[data-pendo="tab-team"]</code>, then <code>[data-pendo="invite-btn"]</code></li>
+          <li>This page: <code>[data-pendo="tour-create-btn"]</code></li>
+        </ol>
+      </div>`;
+
+    $('#tour-create-btn').addEventListener('click', () => { t.created = true; log('Tour: project form opened (new elements appear)'); viewTour(); });
+    const save = $('#tour-save'); if (save) save.addEventListener('click', () => { t.saved = true; log('Tour: project saved'); viewTour(); });
+    $('#tour-finish').addEventListener('click', () => {
+      t.finished = true; log('Tour: finished'); viewTour();
+      later(() => {
+        const slot = $('#tour-late');
+        if (slot) { slot.innerHTML = `<span class="badge" data-pendo="tour-late-badge">Late badge</span>`; log('Tour: late badge rendered'); }
+      });
+    });
+    $('#tour-reset').addEventListener('click', () => { t.created = t.saved = t.finished = false; log('Tour: reset'); viewTour(); });
+    if (t.finished) later(() => {
+      const slot = $('#tour-late');
+      if (slot && !slot.firstChild) slot.innerHTML = `<span class="badge" data-pendo="tour-late-badge">Late badge</span>`;
+    });
+  }
+
   // ---------- wiring ----------
   document.addEventListener('click', (e) => {
     const a = e.target.closest('a[data-link]');
@@ -284,6 +516,8 @@
   $('#opt-late').value = settings.lateMs;
   $('#opt-identity').value = settings.identityMs;
   $('#opt-pageload').checked = settings.pageLoad;
+  $('#opt-conditions').checked = settings.showConditions;
+  $('#opt-conditions').addEventListener('change', e => { settings.showConditions = e.target.checked; save(); renderConditions(currentPath()); });
   $('#opt-random').addEventListener('change', e => { settings.random = e.target.checked; save(); });
   $('#opt-late').addEventListener('change', e => { settings.lateMs = Math.max(0, +e.target.value || 0); save(); });
   $('#opt-identity').addEventListener('change', e => { settings.identityMs = Math.max(0, +e.target.value || 0); save(); });

@@ -38,6 +38,24 @@ npx serve -s .      # -s = SPA fallback to index.html
 | Delayed identity | test controls: identity delay, reload | Segment-targeted guides when metadata arrives late |
 | Manual page signal | test controls: `pendo.pageLoad()` toggle | Does it change guide behavior on route change? |
 
+## Test conditions panel
+
+Each page shows a "Test conditions on this page" card at the top. It lists the page rule to use, what is deliberately tricky on that page, the stable selectors to target, and things to try. Turn it off in the test controls if it gets in the way of an anchored guide.
+
+## Building a multi-step guide
+
+The **Tour** page (`/tour`) is a playground for one guide with several steps:
+
+| Step | Target | What it tests |
+|---|---|---|
+| 1 | `[data-pendo="tour-welcome"]` | Always-present element |
+| 2 | `[data-pendo="tour-create-btn"]` | Click-driven progress |
+| 3 | `[data-pendo="tour-name"]` / `tour-save` | Element that does not exist until step 2 is done |
+| 4 | `[data-pendo="tour-scroll-target"]` | Anchor inside a scroll container, off-screen at first |
+| 5 | `[data-pendo="tour-finish"]` | Completion, followed by a late-rendered badge |
+
+The same page lists a cross-page path (Home, Dashboard, Reports, Settings, Tour) with one target per hop, for testing a guide that spans routes. Use "Reset tour state" to replay.
+
 ## Selector tips
 
 Every meaningful element has a stable `data-pendo="..."` attribute (and many have ids). Classes are intentionally randomized (`btn_x7k2a`), so a selector like `button.btn_x7k2a` breaks on the next render, which mimics CSS-in-JS and hashed class names. Note that custom attributes may need to be registered in Pendo's app settings before selectors using them will match.

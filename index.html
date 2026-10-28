@@ -42,10 +42,12 @@
       <a data-link data-path="/dashboard" data-pendo="nav-dashboard">Dashboard</a>
       <a data-link data-path="/reports" data-pendo="nav-reports">Reports</a>
       <a data-link data-path="/settings" data-pendo="nav-settings">Settings</a>
+      <a data-link data-path="/tour" data-pendo="nav-tour">Tour</a>
       <a data-link data-path="/legacy" data-pendo="nav-legacy">Legacy (hash)</a>
     </nav>
   </header>
 
+  <section id="conditions" data-pendo="conditions-panel"></section>
   <main id="app" data-pendo="app-root"></main>
 
   <aside id="debug" data-ui="debug">
@@ -56,6 +58,7 @@
       <label>Late-render delay (ms) <input type="number" id="opt-late" min="0" step="250" style="width:80px"></label>
       <label>Delay identity / pendo.initialize (ms) <input type="number" id="opt-identity" min="0" step="250" style="width:80px"></label>
       <label><input type="checkbox" id="opt-pageload"> Call pendo.pageLoad() on every route change</label>
+      <label><input type="checkbox" id="opt-conditions"> Show "test conditions" panel on each page</label>
       <div class="hint">Option changes apply on the next render. Identity delay needs a reload.</div>
       <div id="log" data-ui="log"></div>
     </div>
