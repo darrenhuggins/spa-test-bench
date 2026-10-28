@@ -2,7 +2,7 @@
 window.SPA_CONFIG = {
   // Your Pendo subscription API key (Settings > Subscription Settings > App Details).
   // Leave as-is to run the app without loading Pendo.
-  pendoApiKey: 'YOUR_PENDO_API_KEY',
+  pendoApiKey: '37d3acb5-c6dd-4282-9c1b-2c13d5973adc',
 
   // EU / other regions use a different CDN host, e.g. 'https://cdn.eu.pendo.io'
   pendoCdn: 'https://cdn.pendo.io',
