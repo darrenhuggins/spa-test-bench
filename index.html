@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SPA Test Bench</title>
+  <link rel="stylesheet" href="./styles.css">
+
+  <!-- GitHub Pages SPA deep-link fix: decodes the URL that 404.html encoded. Must run first. -->
+  <script>
+    (function (l) {
+      if (l.search[1] === '/') {
+        var decoded = l.search.slice(1).split('&').map(function (s) { return s.replace(/~and~/g, '&'); }).join('?');
+        window.history.replaceState(null, null, l.pathname.slice(0, -1) + decoded + l.hash);
+      }
+    }(window.location));
+  </script>
+
+  <script src="./config.js"></script>
+  <!-- Pendo install snippet (loaded only if a real API key is configured). initialize() is called from app.js -->
+  <script>
+    (function (cfg) {
+      if (!cfg.pendoApiKey || cfg.pendoApiKey === 'YOUR_PENDO_API_KEY') return;
+      (function (p, e, n, d, o) {
+        var v, w, x, y, z; o = p[d] = p[d] || {}; o._q = o._q || [];
+        v = ['initialize', 'identify', 'updateOptions', 'pageLoad', 'track'];
+        for (w = 0, x = v.length; w < x; ++w) (function (m) {
+          o[m] = o[m] || function () { o._q[m === v[0] ? 'unshift' : 'push']([m].concat([].slice.call(arguments, 0))); };
+        })(v[w]);
+        y = e.createElement(n); y.async = !0;
+        y.src = cfg.pendoCdn + '/agent/static/' + cfg.pendoApiKey + '/pendo.js';
+        z = e.getElementsByTagName(n)[0]; z.parentNode.insertBefore(y, z);
+      })(window, document, 'script', 'pendo');
+    })(window.SPA_CONFIG);
+  </script>
+</head>
+<body>
+  <header data-ui="header">
+    <a data-link data-path="/" data-pendo="logo" class="brand">SPA Test Bench</a>
+    <nav id="nav" data-pendo="main-nav">
+      <a data-link data-path="/" data-pendo="nav-home">Home</a>
+      <a data-link data-path="/dashboard" data-pendo="nav-dashboard">Dashboard</a>
+      <a data-link data-path="/reports" data-pendo="nav-reports">Reports</a>
+      <a data-link data-path="/settings" data-pendo="nav-settings">Settings</a>
+      <a data-link data-path="/legacy" data-pendo="nav-legacy">Legacy (hash)</a>
+    </nav>
+  </header>
+
+  <main id="app" data-pendo="app-root"></main>
+
+  <aside id="debug" data-ui="debug">
+    <button id="debug-toggle" type="button">Test controls ▾</button>
+    <div id="debug-body">
+      <div id="pendo-status">Pendo: …</div>
+      <label><input type="checkbox" id="opt-random"> Randomize CSS class names on every render</label>
+      <label>Late-render delay (ms) <input type="number" id="opt-late" min="0" step="250" style="width:80px"></label>
+      <label>Delay identity / pendo.initialize (ms) <input type="number" id="opt-identity" min="0" step="250" style="width:80px"></label>
+      <label><input type="checkbox" id="opt-pageload"> Call pendo.pageLoad() on every route change</label>
+      <div class="hint">Option changes apply on the next render. Identity delay needs a reload.</div>
+      <div id="log" data-ui="log"></div>
+    </div>
+  </aside>
+
+  <script src="./app.js"></script>
+</body>
+</html>

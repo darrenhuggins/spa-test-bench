@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Redirecting…</title>
+  <!--
+    GitHub Pages has no server-side rewrite, so a refresh or direct visit to /REPO/dashboard returns 404.
+    This page encodes the path into the query string and bounces to index.html, which restores it.
+    Based on the spa-github-pages technique.
+    pathSegmentsToKeep: 1 for project pages (USER.github.io/REPO/), 0 for user/org sites or custom domains.
+  -->
+  <script>
+    var pathSegmentsToKeep = 1;
+    var l = window.location;
+    l.replace(
+      l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
+      l.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/') + '/?/' +
+      l.pathname.slice(1).split('/').slice(pathSegmentsToKeep).join('/').replace(/&/g, '~and~') +
+      (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') +
+      l.hash
+    );
+  </script>
+</head>
+<body></body>
+</html>
